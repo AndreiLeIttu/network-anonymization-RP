@@ -10,16 +10,18 @@ array[1..n, 1..n] of var bool: edges;
 int: unused = n+1;
 array[1..n, 1..n] of var 1..unused: phi; %node assignments for the purpose of isomorphism tests
 
+array[1..n] of var set of int: neighborhood= 
+  [ {i | i in 1..n where i = j \/ edges[j, i] \/ edges[i, j]} | j in 1..n ];
+array[1..n] of var int: neighborhood_size = 
+  [card(neighborhood[j]) | j in 1..n];
+
+
 predicate isomorphic(int: x, int: y) =
-  let {
-    var set of int: Nx = {i | i in 1..n where i = x \/ edges[x, i] \/ edges[i, x]},
-    var set of int: Ny = {i | i in 1..n where i = y \/ edges[y, i] \/ edges[i, y]}
-  } in
-    card(Nx) = card(Ny) /\
-    forall(i in Nx) (
-      phi[x, i] in Ny
+    neighborhood_size[x] = neighborhood_size[y] /\
+    forall(i in neighborhood[x]) (
+      phi[x, i] in neighborhood[y]
     ) /\
-    forall(i in Nx, j in Nx where i != j) (
+    forall(i in neighborhood[x], j in neighborhood[x] where i != j) (
       (edges[i, j] -> edges[phi[x, i], phi[x, j]]) /\
       (edges[phi[x, i], phi[x, j]] -> edges[i, j])
     );
@@ -30,7 +32,7 @@ predicate isomorphic(int: x, int: y) =
 %all node assignments for a neighborhood are different
 constraint forall(i in 1..n) (
   all_different([
-    phi[i, j] | j in 1..n where i = j \/ edges[j, i] \/ edges[i, j]
+    phi[i, j] | j in neighborhood[i]
   ])
 );
 
