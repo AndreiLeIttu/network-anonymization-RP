@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <deque>
 #include <unordered_map>
+#include <bitset>
+#include <stack>
 
 using namespace std;
 
@@ -15,23 +17,25 @@ class Graph {
     public:
         int n;
         int m;
-        int k; //anonymization factor
         unordered_map<int, vector<int>> v;
         unordered_set<int> node_indexes; //nodes that are part of this graph
 };
 
 Graph g;
+int k; //anonymization factor
+
 vector<Graph> neighborhood;
 //only used for lookups as deque lookups are linear in time complexity
 bool anonymized[1000001];
 
+vector<vector<Graph>> components;
+
 Graph read_input() {
     Graph g;
-    int n, m, k, a, b;
+    int n, m, a, b;
     in>>n>>m>>k;
     g.n = n;
     g.m = m;
-    g.k = k;
     for (int i=1;i<=g.m;i++) {
         in>>a>>b;
         g.v[a].push_back(b);
@@ -60,6 +64,7 @@ void compute_neighborhoods() {
         Graph neigh;
 
         neigh.n = 1 + g.v[i].size(); //number of nodes in neighborhood = current node + degree of the node
+        neigh.m = 0;
         neigh.node_indexes.insert(i);
         for (int j : g.v[i]) {
             neigh.node_indexes.insert(j);
@@ -72,7 +77,7 @@ void compute_neighborhoods() {
                     neigh.v[j].push_back(k), neigh.m++;
 
         }
-
+        neigh.m/=2; //we counted all edges twice
         neighborhood.push_back(neigh);
     }
 }
@@ -84,9 +89,37 @@ void anonymize_neighborhoods(int u, int v) {
 }
 
 //for our graph g and the neighborhoods of all of its nodes, finds the respective maximally connected subgraphs, 
-//representing the components of each neighborhood
+//representing the connected components of each neighborhood
 void find_neighborhood_components() {
+    for (int i=0;i<neighborhood.size();i++) {
+        Graph g = neighborhood[i];
+        bitset<1000001> visited; 
+        for (int v: g.node_indexes) 
+            if (!visited[v])
+            {
+                Graph component;
+                component.n = 0;
+                component.m = 0;
+                stack<int> st;
+                st.push(v);
+                while(!st.empty()) {
+                    int front = st.top();
+                    st.pop();
+                    component.node_indexes.insert(front);
+                    component.n++;
+                    visited[front] = 1;
+                    for (int u : g.v[front]) {
+                        if (!visited[u])
+                            st.push(u);
+                        component.m++;
+                        component.v[front].push_back(u);
+                    }
+                }
+                component.m/=2; //we counted each edge twice
+                components[i].push_back(component);
+            }
 
+    }
 }
 
 //computes the NCC of a given node's neighborhood by sorting the components and merging their DFS codes together
@@ -100,7 +133,7 @@ int main() {
     find_neighborhood_components();
     for (int i=0;i<neighborhood.size();i++) 
         compute_neighborhood_component_code(i);
-    //might need to be declare globally as anonymization functions may update which nodes are/not anonymized
+    //might need to be declared globally as anonymization functions may update which nodes are/not anonymized
     deque<int> vertexList(g.n);
     for (int i=0;i<g.n;i++)
         vertexList.push_back(i);
@@ -120,8 +153,8 @@ int main() {
 
         sort(candidateSet.begin(), candidateSet.end(), cost_cmp);
 
-        if (vertexList.size() >= 2*g.k - 1)
-            while(candidateSet.size() > g.k - 1) 
+        if (vertexList.size() >= 2*k - 1)
+            while(candidateSet.size() > k - 1) 
                 candidateSet.pop_back();
         //anonymize all 
         for (int i=0;i<candidateSet.size();i++) {
