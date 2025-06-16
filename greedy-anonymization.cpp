@@ -8,12 +8,15 @@
 #include <unordered_map>
 #include <bitset>
 #include <stack>
+#include "gspan.h"
+#include <sstream>
 
 using namespace std;
+using namespace GSPAN;
 
 ifstream in("graph_input.in");
 
-class Graph {
+class AnonGraph {
     public:
         int n;
         int m;
@@ -21,17 +24,19 @@ class Graph {
         unordered_set<int> node_indexes; //nodes that are part of this graph
 };
 
-Graph g;
+AnonGraph g;
 int k; //anonymization factor
 
-vector<Graph> neighborhood;
+vector<AnonGraph> neighborhood;
 //only used for lookups as deque lookups are linear in time complexity
 bool anonymized[1000001];
 
-vector<vector<Graph>> components;
+vector<vector<AnonGraph>> components;
+vector<vector<string>> component_dfs_codes; //first index is the node corresponding to the neighborhood, second one is the component index
+vector<string> dfs_code;
 
-Graph read_input() {
-    Graph g;
+AnonGraph read_input() {
+    AnonGraph g;
     int n, m, a, b;
     in>>n>>m>>k;
     g.n = n;
@@ -61,7 +66,7 @@ bool cost_cmp(pair<int,int> &a, pair<int, int> &b) {
 
 void compute_neighborhoods() {
     for (int i=0;i<g.n;i++) {
-        Graph neigh;
+        AnonGraph neigh;
 
         neigh.n = 1 + g.v[i].size(); //number of nodes in neighborhood = current node + degree of the node
         neigh.m = 0;
@@ -92,12 +97,12 @@ void anonymize_neighborhoods(int u, int v) {
 //representing the connected components of each neighborhood
 void find_neighborhood_components() {
     for (int i=0;i<neighborhood.size();i++) {
-        Graph g = neighborhood[i];
+        AnonGraph g = neighborhood[i];
         bitset<1000001> visited; 
         for (int v: g.node_indexes) 
             if (!visited[v])
             {
-                Graph component;
+                AnonGraph component;
                 component.n = 0;
                 component.m = 0;
                 stack<int> st;
@@ -122,17 +127,74 @@ void find_neighborhood_components() {
     }
 }
 
-//computes the NCC of a given node's neighborhood by sorting the components and merging their DFS codes together
-void compute_neighborhood_component_code(int node) {
+//call the gspan library on an instance of a graph to get its minimum dfs code
+string get_min_dfs_code(const GSPAN::Graph& g) {
+    DFSCode dfs_code;
+    dfs_code.fromGraph(const_cast<GSPAN::Graph&>(g));
 
+    // Create a gSpan instance only to check if this code is minimal
+    gSpan gspan;
+    gspan.GRAPH_IS_MIN = g;
+    gspan.DFS_CODE_IS_MIN.clear();
+    gspan.DFS_CODE_IS_MIN = dfs_code;
+
+    if (!gspan.is_min()) {
+        // If it's not minimal, is_min() modifies DFS_CODE_IS_MIN to be the minimal one
+    }
+
+    std::ostringstream oss;
+    gspan.DFS_CODE_IS_MIN.write(oss);
+    return oss.str();
+}
+
+//computes the minimum dfs code of a given component by converting the graph to a GSPAN::Graph instance and calling the above function
+void compute_component_dfs_code(int node, int component_idx) {
+    AnonGraph component = components[node][component_idx];
+    GSPAN::Graph gspan_graph(false); // false = undirected
+
+    std::unordered_map<int, int> old_to_new;
+    int idx = 0;
+    for (int u : component.node_indexes)
+        old_to_new[u] = idx++;
+
+    gspan_graph.resize(component.node_indexes.size());
+
+    for (auto& [u, neighbors] : component.v) {
+        int new_u = old_to_new[u];
+        gspan_graph[new_u].label = 0;
+        for (int v : neighbors) {
+            int new_v = old_to_new[v];
+            gspan_graph[new_u].push(new_u, new_v, 0);
+        }
+    }
+
+    gspan_graph.buildEdge();
+    string code = get_min_dfs_code(gspan_graph);
+    component_dfs_codes[node][component_idx] = code;
+}
+
+void merge_dfs_codes(int neigh_idx) {
+    vector<string> codes;
+    for (int i=0;i<components[neigh_idx].size();i++) 
+        codes.push_back(component_dfs_codes[neigh_idx][i]);
+    sort(codes.begin(), codes.end());
+
+    string merged_code;
+    for (string code: codes) {
+        merged_code += code + "|";
+    }
+    dfs_code[neigh_idx] = merged_code;
 }
 
 int main() {
     g = read_input();
     compute_neighborhoods();
     find_neighborhood_components();
-    for (int i=0;i<neighborhood.size();i++) 
-        compute_neighborhood_component_code(i);
+    for (int i=0;i<neighborhood.size();i++) {
+        for (int j=0;j<components[i].size();j++)
+            compute_component_dfs_code(i, j);
+        merge_dfs_codes(i);
+    }
     //might need to be declared globally as anonymization functions may update which nodes are/not anonymized
     deque<int> vertexList(g.n);
     for (int i=0;i<g.n;i++)
