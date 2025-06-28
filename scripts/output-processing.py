@@ -82,18 +82,19 @@ def process_experiment_folder(folder_path, flag):
 
 
 def main():
-    base_dp_path = Path('../gourd/experiments/3/0')
+    base_dp_path = Path('../gourd-iso-model/experiments/1/0')
     results = []
 
     for exp_dir in base_dp_path.iterdir():
         if not exp_dir.is_dir():
             continue
         time, file_name, n, delta = process_experiment_folder(exp_dir, "cp")
-        results.append((file_name, n, delta))
+        # results.append((file_name, n, delta))
+        results.append((file_name, time))
 
     # print only file_name, n, and delta
-    for file_name, n, delta in results:
-        print(f"({file_name}, {n}, {delta})")
+    for file_name, time in results:
+        print(f'("{file_name}", {time}),')
 
 if __name__ == "__main__":
     main()

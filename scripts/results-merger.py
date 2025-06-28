@@ -158,7 +158,6 @@ results_k6 = [
     ("graph_22.dzn", 11, 9),
 ]
 
-# Convert to dictionaries
 dict_k2 = {f: (n, e) for f, n, e in results_k2}
 dict_k4 = {f: (n, e) for f, n, e in results_k4}
 dict_k6 = {f: (n, e) for f, n, e in results_k6}
@@ -175,30 +174,54 @@ for f in common_keys:
     if None not in (n2, e2, n4, e4, n6, e6) and n2 == n4 == n6:
         aligned_data.append((n2, e2, e4, e6))
 
-# Sort by number of nodes
-aligned_data.sort(key=lambda x: x[0])
+# Group by number of nodes and average the dummy edge counts
+from collections import defaultdict
 
-# Extract for plotting
-nodes = [n for n, _, _, _ in aligned_data]
-edges_k2 = [e2 for _, e2, _, _ in aligned_data]
-edges_k4 = [e4 for _, _, e4, _ in aligned_data]
-edges_k6 = [e6 for _, _, _, e6 in aligned_data]
+grouped = defaultdict(list)
+for n, e2, e4, e6 in aligned_data:
+    grouped[n].append((e2, e4, e6))
+
+# Average the values per group
+nodes = []
+edges_k2 = []
+edges_k4 = []
+edges_k6 = []
+
+for n in sorted(grouped):
+    values = np.array(grouped[n])
+    mean_e2, mean_e4, mean_e6 = np.mean(values, axis=0)
+    nodes.append(n)
+    edges_k2.append(mean_e2)
+    edges_k4.append(mean_e4)
+    edges_k6.append(mean_e6)
 
 # Plot
 plt.style.use('grayscale')
-plt.figure(figsize=(4, 3))
+plt.figure(figsize=(4, 3), facecolor='none')
 
-plt.plot(nodes, edges_k2, linestyle='--', marker='x', label='k = 2')
-plt.plot(nodes, edges_k4, linestyle='-', marker='s', label='k = 4')
-plt.plot(nodes, edges_k6, linestyle=':', marker='o', label='k = 6')
+ax = plt.gca()
+ax.set_facecolor('none')
+ax.tick_params(colors='white')
+ax.spines['bottom'].set_color('white')
+ax.spines['top'].set_color('white')
+ax.spines['left'].set_color('white')
+ax.spines['right'].set_color('white')
 
-plt.xlabel('Number of Vertices', fontsize=10)
-plt.ylabel('Number of dummy edges', fontsize=10)
-plt.xticks(fontsize=8)
-plt.yticks(fontsize=8)
-plt.legend(fontsize=8, loc='best', frameon=False)
+plt.plot(nodes, edges_k2, linestyle='--', marker='x', color='white', label='k = 2')
+plt.plot(nodes, edges_k4, linestyle='-', marker='s', color='white', label='k = 4')
+plt.plot(nodes, edges_k6, linestyle=':', marker='o', color='white', label='k = 6')
+
+plt.xlabel('Number of Vertices', fontsize=8, color='white')
+plt.ylabel('Avg. number of dummy edges', fontsize=8, color='white')
+plt.xticks(fontsize=8, color='white')
+plt.yticks(fontsize=8, color='white')
+plt.legend(fontsize=8, loc='best', frameon=False, labelcolor='white')
+
 plt.grid(False)
-plt.tight_layout()
+plt.subplots_adjust(bottom=0.3)  # Add space at the bottom
 
-plt.savefig("gaga_filtered_plot.png", dpi=300)
-plt.show()
+plt.figtext(0.5, 0.02, r'Influence of the anonymization factor $k$ over the anonymization cost',
+            wrap=True, horizontalalignment='center', fontsize=10, color='white')
+
+
+plt.savefig("./results/averaged_plot_poster.png", dpi=300, transparent=True)
